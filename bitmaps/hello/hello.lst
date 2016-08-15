@@ -1,0 +1,222 @@
+ AS V1.42 Beta [Bld 30] - source file hello.asm - page 1 - 8/15/2016 14:29:37
+
+
+       1/       0 :                     
+       2/       0 :                     ;=======================================================
+       3/       0 :                     ;=======================================================
+       4/       0 :                     ;  8085 SOC Hello World
+       5/       0 :                     ;=======================================================
+       6/       0 :                     ;=======================================================
+       7/       0 :                             cpu      8085
+       8/       0 :                             relaxed  ON
+       9/       0 :                     
+      10/       0 :                     ;=======================================================
+      11/       0 :                     ; Defines
+      12/       0 :                     ;=======================================================
+      13/       0 :                     
+      14/       0 :                     ; UART register addresses
+      15/       0 :                     ;
+      16/       0 : =0H                 uartcntl     equ    $0000
+      17/       0 : =1H                 uartbsr0     equ    $0001
+      18/       0 : =2H                 uartbsr1     equ    $0002
+      19/       0 : =3H                 uartstat     equ    $0003
+      20/       0 : =4H                 uartmask     equ    $0004
+      21/       0 : =5H                 uartdata     equ    $0005
+      22/       0 :                     
+      23/       0 :                     ; UART baud rate
+      24/       0 :                     ;
+      25/       0 : =E3H                baud0        equ    $e3     ; 115200
+      26/       0 : =78H                baud1        equ    $78     ; 115200
+      27/       0 :                     
+      28/       0 :                     ; UART status register bit definitions
+      29/       0 :                     ;
+      30/       0 : =40H                framingerror equ    $40
+      31/       0 : =20H                parityerror  equ    $20
+      32/       0 : =10H                overrunerr   equ    $10
+      33/       0 : =8H                 txfifoempty  equ    $08
+      34/       0 : =4H                 txnotfull    equ    $04
+      35/       0 : =2H                 rxfifofull   equ    $02
+      36/       0 : =1H                 rxnotempty   equ    $01
+      37/       0 :                     
+      38/       0 :                     ; timer register addresses
+      39/       0 :                     ;
+      40/       0 : =8H                 timrcntl     equ    $0008
+      41/       0 : =8H                 timrstat     equ    $0008
+      42/       0 : =9H                 timricl      equ    $0009
+      43/       0 : =AH                 timrich      equ    $000a
+      44/       0 :                     
+      45/       0 : =88H                time0        equ    $88     ; 5 seconds
+      46/       0 : =13H                time1        equ    $13     ; 5 seconds
+      47/       0 : =1H                 tmstart      equ    $01     ; start timer
+      48/       0 : =4H                 tmdone       equ    $04     ; timer done
+      49/       0 : =0H                 tmstop       equ    $00     ; stop timer
+      50/       0 :                     
+      51/       0 :                     ; other register address
+      52/       0 :                     ;
+      53/       0 : =CH                 oporta       equ    $000c   ; port a
+      54/       0 : =DH                 imask        equ    $000d   ; interrupt mask
+      55/       0 : =EH                 randcntl     equ    $000e   ; random number start/stop
+      56/       0 : =FH                 randmask     equ    $000f   ; random number mask
+      57/       0 : =FH                 randdata     equ    $000f   ; random number
+      58/       0 : =10H                isrc         equ    $0010   ; interrupt source
+      59/       0 :                     
+      60/       0 : =FFFH               stacktop:    equ    $0fff   ; stack top
+ AS V1.42 Beta [Bld 30] - source file hello.asm - page 2 - 8/15/2016 14:29:37
+
+
+      61/       0 :                     
+      62/       0 :                     
+      63/       0 :                     ;=======================================================
+      64/       0 :                     ; Start from reset
+      65/       0 :                     ;=======================================================
+      66/       0 :                                  org    0
+      67/       0 :                     
+      68/       0 : F3                  start:       di                    ; disable interrupt
+      69/       1 : 31 FF 0F                         lxi    sp,stacktop    ; set stack pointer
+      70/       4 : CD 13 00                         call   inituart       ; init and test of UART
+      71/       7 :                     
+      72/       7 : 21 50 00            main:        lxi    h,Banner
+      73/       A : CD 20 00                         call   puts           ; print hello message
+      74/       D : CD 3C 00                         call   wait1          ; wait
+      75/      10 : C3 07 00                         jmp    main
+      76/      13 :                     
+      77/      13 :                     
+      78/      13 :                     ;=======================================================
+      79/      13 :                     ; Initialize the UART
+      80/      13 :                     ;   inputs  : none
+      81/      13 :                     ;   destroys: a
+      82/      13 :                     ;=======================================================
+      83/      13 : 3E E3               inituart:    mvi    a, baud0      ; baud rate
+      84/      15 : D3 01                            out    uartbsr0
+      85/      17 : 3E 78                            mvi    a, baud1
+      86/      19 : D3 02                            out    uartbsr1
+      87/      1B : 3E 03                            mvi    a, $03        ; enable tx and rx
+      88/      1D : D3 00                            out    uartcntl
+      89/      1F : C9                               ret
+      90/      20 :                     
+      91/      20 :                     
+      92/      20 :                     ;=======================================================
+      93/      20 :                     ; Send a string to the UART
+      94/      20 :                     ;   inputs  : hl has pointer to string
+      95/      20 :                     ;   destroys: a
+      96/      20 :                     ;=======================================================
+      97/      20 : F5                  puts:        push   psw            ; save a
+      98/      21 : 7E                  putloop:     mov    a,m            ; load a with next char
+      99/      22 : FE 00                            cpi    0              ; check for end of string
+     100/      24 : CA 2E 00                         jz     putdone        ; exit if done
+     101/      27 : 23                               inx    h              ; increment pointer
+     102/      28 : CD 30 00                         call   putc           ; put a character
+     103/      2B : C3 21 00                         jmp    putloop        ; repeat
+     104/      2E : F1                  putdone:     pop    psw            ; restore a
+     105/      2F : C9                               ret
+     106/      30 :                     
+     107/      30 :                     
+     108/      30 :                     ;=======================================================
+     109/      30 :                     ; Send a single character to the UART
+     110/      30 :                     ;   input   : a has character
+     111/      30 :                     ;   destroys: none
+     112/      30 :                     ;=======================================================
+     113/      30 : F5                  putc:        push   psw            ; save a
+     114/      31 : DB 03               txfull:      in     uartstat       ; get tx uart status
+     115/      33 : E6 04                            ani    txnotfull      ; tx fifo full?
+     116/      35 : CA 31 00                         jz     txfull      ; wait if full
+     117/      38 : F1                               pop    psw            ; restore a
+     118/      39 : D3 05                            out    uartdata       ; put a character
+     119/      3B : C9                               ret
+     120/      3C :                     
+ AS V1.42 Beta [Bld 30] - source file hello.asm - page 3 - 8/15/2016 14:29:37
+
+
+     121/      3C :                     
+     122/      3C :                     ;=======================================================
+     123/      3C :                     ; Wait for a few seconds
+     124/      3C :                     ;   inputs  : none
+     125/      3C :                     ;   destroys: a
+     126/      3C :                     ;=======================================================
+     127/      3C : 3E 88               wait1:       mvi   a, time0        ; initial count 0
+     128/      3E : D3 09                            out   timricl
+     129/      40 : 3E 13                            mvi   a, time1        ; initial count 1
+     130/      42 : D3 0A                            out   timrich
+     131/      44 : 3E 01                            mvi   a, tmstart      ; start timer
+     132/      46 : D3 08                            out   timrcntl
+     133/      48 : DB 08               wait2:       in    timrstat        ; read status
+     134/      4A : E6 04                            ani   tmdone          ; timer done
+     135/      4C : CA 48 00                         jz    wait2
+     136/      4F : C9                               ret
+     137/      50 :                     
+     138/      50 :                     
+     139/      50 :                     
+     140/      50 :                     
+     141/      50 :                     
+     142/      50 :                     ;=======================================================
+     143/      50 :                     ; Strings
+     144/      50 :                     ;=======================================================
+     145/      50 : 0D 0A               Banner:      db    $0d,$0a
+     146/      52 : 48 65 6C 6C 6F 20                db    "Hello World from 8085-SOC"
+                    57 6F 72 6C 64 20 
+                    66 72 6F 6D 20 38 
+                    30 38 35 2D 53 4F 
+                    43 
+     147/      6B : 0D 0A 00                         db    $0d,$0a,0
+     148/      6E :                     
+     149/      6E :                                  end   start
+ AS V1.42 Beta [Bld 30] - source file hello.asm - page 4 - 8/15/2016 14:29:37
+
+
+  symbol table (* = unused):
+  ------------------------
+
+*ARCHITECTURE :  i386-unknown-win32 - |  BANNER :                        50 C |
+ BAUD0 :                         E3 - |  BAUD1 :                         78 - |
+*BIGENDIAN :                      0 - | *BRANCHEXT :                      0 - |
+*CASESENSITIVE :                  0 - | *CONSTPI :        3.141592653589793 - |
+*DATE :                   8/15/2016 - | *FALSE :                          0 - |
+*FRAMINGERROR :                  40 - | *FULLPMMU :                       1 - |
+*HAS64 :                          1 - | *HASDSP :                         0 - |
+*HASFPU :                         0 - | *HASPMMU :                        0 - |
+*IMASK :                          D - | *INEXTMODE :                      0 - |
+ INITUART :                      13 C | *INLWORDMODE :                    0 - |
+*INMAXMODE :                      0 - | *INSRCMODE :                      0 - |
+*INSUPMODE :                      0 - | *ISRC :                          10 - |
+*LISTON :                         1 - | *MACEXP :                         1 - |
+ MAIN :                           7 C | *MOMCPU :                      8085 - |
+*MOMCPUNAME :                  8085 - | *NESTMAX :                      100 - |
+*OPORTA :                         C - | *OVERRUNERR :                    10 - |
+*PACKING :                        0 - | *PADDING :                        1 - |
+*PARITYERROR :                   20 - |  PUTC :                          30 C |
+ PUTDONE :                       2E C |  PUTLOOP :                       21 C |
+ PUTS :                          20 C | *RANDCNTL :                       E - |
+*RANDDATA :                       F - | *RANDMASK :                       F - |
+*RELAXED :                        1 - | *RXFIFOFULL :                     2 - |
+*RXNOTEMPTY :                     1 - |  STACKTOP :                     FFF - |
+ START :                          0 C | *TIME :                    14:29:37 - |
+ TIME0 :                         88 - |  TIME1 :                         13 - |
+ TIMRCNTL :                       8 - |  TIMRICH :                        A - |
+ TIMRICL :                        9 - |  TIMRSTAT :                       8 - |
+ TMDONE :                         4 - |  TMSTART :                        1 - |
+*TMSTOP :                         0 - | *TRUE :                           1 - |
+*TXFIFOEMPTY :                    8 - |  TXFULL :                        31 C |
+ TXNOTFULL :                      4 - |  UARTBSR0 :                       1 - |
+ UARTBSR1 :                       2 - |  UARTCNTL :                       0 - |
+ UARTDATA :                       5 - | *UARTMASK :                       4 - |
+ UARTSTAT :                       3 - | *VERSION :                     142F - |
+ WAIT1 :                         3C C |  WAIT2 :                         48 C |
+
+     70 symbols
+     42 unused symbols
+
+ AS V1.42 Beta [Bld 30] - source file hello.asm - page 5 - 8/15/2016 14:29:37
+
+
+  codepages:
+  ----------
+
+STANDARD (0 changed characters)
+
+
+0.14 seconds assembly time
+
+    151 lines source file
+      2 passes
+      0 errors
+      0 warnings
